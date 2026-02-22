@@ -13,18 +13,30 @@
         <p class="subtitle">ブラウザで遊べるターン制サンプル</p>
       </header>
 
-      <section class="arena">
-        <article class="monster enemy" aria-label="敵モンスター">
+      <section class="arena" id="arena">
+        <article class="monster enemy" id="enemy-card" aria-label="敵モンスター">
+          <div class="sprite-wrap">
+            <img src="assets/enemy-monster.svg" alt="スライムキングのスプライト" class="sprite" />
+            <div class="damage-layer" id="enemy-damage-layer"></div>
+          </div>
           <h2 id="enemy-name">スライムキング</h2>
           <p class="hp" id="enemy-hp">HP: 120 / 120</p>
-          <div class="hp-bar"><div id="enemy-hp-fill" class="hp-fill"></div></div>
+          <div class="hp-bar">
+            <div id="enemy-hp-fill" class="hp-fill"></div>
+          </div>
           <p id="enemy-status" class="status">状態: 通常</p>
         </article>
 
-        <article class="monster player" aria-label="自分のモンスター">
+        <article class="monster player" id="player-card" aria-label="自分のモンスター">
+          <div class="sprite-wrap">
+            <img src="assets/player-monster.svg" alt="ファイアウルフのスプライト" class="sprite" />
+            <div class="damage-layer" id="player-damage-layer"></div>
+          </div>
           <h2 id="player-name">ファイアウルフ</h2>
           <p class="hp" id="player-hp">HP: 130 / 130</p>
-          <div class="hp-bar"><div id="player-hp-fill" class="hp-fill"></div></div>
+          <div class="hp-bar">
+            <div id="player-hp-fill" class="hp-fill"></div>
+          </div>
           <p id="player-status" class="status">状態: 通常</p>
         </article>
       </section>
@@ -41,6 +53,6 @@
       </section>
     </main>
 
-    <script src="src/game.js"></script>
+    <script type="module" src="src/game.js"></script>
   </body>
 </html>
