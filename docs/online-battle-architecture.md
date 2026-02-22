@@ -1,142 +1,142 @@
-# Online Turn-Based Battle Architecture (Browser Monster RPG)
+# オンラインターン制バトル アーキテクチャ（ブラウザ向けモンスターRPG）
 
-## 1) Goals & Constraints
+## 1) 目的と制約
 
-- Frontend stack: **React + Phaser** (UI shell + battle scene engine).
-- Backend stack: **Supabase** (Postgres, Auth, Realtime, Edge Functions).
-- Battles are **real-time over WebSockets** while still turn-based in game logic.
-- Combat rules are **server authoritative** (damage, status effects, RNG, turn order).
-- Players join via **room-based matchmaking**.
-- Design must **minimize client-side cheating**.
-- Architecture should be **modular** for future PvE/PvP modes.
+- フロントエンド: **React + Phaser**（UIシェル + バトルシーン描画）。
+- バックエンド: **Supabase**（Postgres, Auth, Realtime, Edge Functions）。
+- バトルは**WebSocketベースのリアルタイム通信**を使いつつ、ゲームロジックはターン制。
+- ダメージ計算・状態異常・行動順・乱数は**サーバー権威（Server Authoritative）**。
+- 対戦は**ルームベースのマッチメイキング**で管理。
+- **クライアント改ざん耐性**を前提に設計。
+- 将来のPvE/PvP拡張に耐える**モジュール構成**。
 
 ---
 
-## 2) High-Level System Architecture
+## 2) システム全体像
 
 ```text
 ┌────────────────────────────────────────────────────────────────────┐
-│                          Browser Client                            │
-│  React App                                                         │
-│   ├─ Lobby/Matchmaking UI                                          │
-│   ├─ Team Builder UI                                               │
-│   ├─ Battle HUD/Action UI                                          │
-│   └─ State Store (Zustand/Redux)                                   │
-│       │                                                            │
-│       └──> Phaser Battle Scene (render/animation only)             │
-│                  │                                                 │
-│                  └── WebSocket (Supabase Realtime channel)         │
-└──────────────────┬─────────────────────────────────────────────────┘
+│                           ブラウザクライアント                      │
+│  Reactアプリ                                                        │
+│   ├─ ロビー / マッチメイキングUI                                    │
+│   ├─ パーティ編成UI                                                  │
+│   ├─ バトルHUD / 行動選択UI                                          │
+│   └─ 状態管理（Zustand/Redux）                                       │
+│       │                                                             │
+│       └──> Phaserバトルシーン（描画/演出専用）                        │
+│                  │                                                  │
+│                  └── WebSocket（Supabase Realtime）                 │
+└──────────────────┬──────────────────────────────────────────────────┘
                    │
-                   │ events (intent only)
+                   │ イベント（意図のみ）
                    ▼
 ┌────────────────────────────────────────────────────────────────────┐
-│                      Supabase Backend                              │
+│                        Supabaseバックエンド                          │
 │                                                                    │
-│  Postgres (source of truth)                                        │
-│   ├─ users / profiles / monsters / player_loadouts                │
+│  Postgres（真実の単一情報源）                                        │
+│   ├─ users / profiles / monsters / player_loadouts                 │
 │   ├─ matchmaking_queue / battle_rooms / battles                    │
 │   ├─ battle_turns / battle_actions / battle_snapshots              │
 │   └─ anti_cheat_audit                                               │
 │                                                                    │
 │  Realtime                                                           │
-│   └─ Room channels: room:{battleId}                                │
+│   └─ ルームチャネル: room:{battleId}                                │
 │                                                                    │
 │  Edge Functions                                                     │
 │   ├─ matchmaking-enqueue                                            │
-│   ├─ matchmaking-tick (scheduled)                                  │
+│   ├─ matchmaking-tick（定期実行）                                    │
 │   ├─ battle-submit-action                                           │
-│   ├─ battle-resolve-turn (authoritative rules engine)              │
+│   ├─ battle-resolve-turn（権威的ルールエンジン）                      │
 │   └─ battle-timeout-forfeit                                         │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-### Core Rule
-Clients **never send computed outcomes** (damage, KO, critical, status hit chance). Clients only send **player intent** (e.g., `use_move(slot=2,target=enemyA)`).
+### コアルール
+クライアントは**結果を送信しない**（ダメージ、急所、状態異常成功など）。
+クライアントが送るのは**プレイヤーの意図**のみ（例: `use_move(slot=2,target=enemyA)`）。
 
 ---
 
-## 3) Battle Data Flow (Authoritative)
+## 3) バトルデータフロー（サーバー権威）
 
-## 3.1 Matchmaking
-1. Player clicks "Find Match" in React.
-2. Client calls `matchmaking-enqueue` Edge Function with selected team ID.
-3. Function validates ownership + loadout legality from DB.
-4. Player enters `matchmaking_queue`.
-5. `matchmaking-tick` pairs compatible players and creates:
-   - `battle_rooms` row,
-   - `battles` initial state row,
-   - initial `battle_snapshots` row (turn 0).
-6. Both clients subscribe to `room:{battleId}` channel and receive `battle_started` event.
+### 3.1 マッチメイキング
+1. プレイヤーがReact UIで「対戦開始」を押す。
+2. クライアントが選択チームID付きで `matchmaking-enqueue` を呼ぶ。
+3. 関数がDBでチーム所有権・レギュレーション適合を検証。
+4. プレイヤーを `matchmaking_queue` に投入。
+5. `matchmaking-tick` が適合ユーザーをペアリングし、以下を作成:
+   - `battle_rooms` レコード
+   - `battles` 初期状態レコード
+   - `battle_snapshots` 初期スナップショット（turn 0）
+6. 双方クライアントが `room:{battleId}` を購読し `battle_started` を受信。
 
-## 3.2 Turn Loop
-1. Server broadcasts `turn_started` with timeout metadata.
-2. Each client submits one action via `battle-submit-action`.
-3. Function checks:
-   - requester is authenticated and is battle participant,
-   - action schema is valid for current turn,
-   - move is available under current rules (PP, status lock, cooldown).
-4. Action is stored in `battle_actions` as **pending intent**.
-5. Once both intents are in (or timer expires), `battle-resolve-turn` runs.
-6. Resolver computes full outcome deterministically:
-   - speed/priority ordering,
-   - hit/miss,
-   - crit,
-   - damage,
-   - secondary effects,
-   - fainting and end-turn effects.
-7. Resolver writes:
-   - immutable turn log (`battle_turns`),
-   - new canonical state (`battles.current_state`),
-   - optional compressed snapshot (`battle_snapshots`).
-8. Resolver publishes `turn_resolved` event to `room:{battleId}` with:
-   - minimal animation payload,
-   - redacted state for each side (fog-of-war friendly),
-   - next turn metadata.
-9. Phaser animates from payload; React updates HUD from canonical state.
+### 3.2 ターン進行
+1. サーバーが `turn_started`（締切時刻含む）を配信。
+2. 各クライアントが `battle-submit-action` で1行動を送信。
+3. 関数側で以下を検証:
+   - 認証済みかつ当該バトル参加者か
+   - 現在ターンに対してスキーマ妥当か
+   - 行動可能条件を満たすか（PP、行動不能、クールダウン等）
+4. 行動を `battle_actions` に**意図（pending）**として保存。
+5. 両者分が揃う（またはタイムアウト）と `battle-resolve-turn` 実行。
+6. リゾルバが決定的に結果を計算:
+   - 優先度/素早さ順
+   - 命中/回避
+   - 急所
+   - ダメージ
+   - 追加効果
+   - ひんし判定とターン終了処理
+7. リゾルバが以下を書き込み:
+   - 不変のターンログ（`battle_turns`）
+   - 正式な最新状態（`battles.current_state`）
+   - 必要に応じ圧縮スナップショット（`battle_snapshots`）
+8. `room:{battleId}` に `turn_resolved` を配信:
+   - 最小限の演出イベント
+   - 陣営ごとの公開可能状態（必要なら情報秘匿）
+   - 次ターン情報
+9. Phaserが演出し、React HUDはサーバー正式状態で更新。
 
-## 3.3 Disconnects/Timeouts
-- Grace window (e.g., 20s reconnect).
-- If no valid action by timeout, server applies configured fallback:
-  - `auto_basic_attack`, or
-  - `skip_turn`, or
-  - `forfeit` after N misses.
-- Outcome is resolved by the same authoritative resolver.
-
----
-
-## 4) Anti-Cheat Strategy
-
-## 4.1 Trust Boundaries
-- **Trusted**: Edge Functions + Postgres rules data.
-- **Untrusted**: browser runtime, local storage, network payloads from client.
-
-## 4.2 Anti-Cheat Controls
-1. **Intent-only protocol**
-   - Client can request action, not result.
-2. **Server-side RNG**
-   - RNG seed generated server-side per battle/turn.
-   - Optional commit-reveal hash for auditability in competitive modes.
-3. **Strict action validation**
-   - Schema validation (Zod/Valibot) in Edge Functions.
-   - State validation against canonical battle state.
-4. **Row Level Security (RLS)**
-   - Player can read only battles they belong to.
-   - No direct write permissions to battle state tables from client role.
-5. **Monotonic turn IDs + idempotency keys**
-   - Prevent replay/double-submit attacks.
-6. **Rate limiting + anomaly logging**
-   - Throttle action endpoints.
-   - Write suspicious events to `anti_cheat_audit`.
-7. **Signed server events (optional hardening)**
-   - Include server signature in battle event payload to detect tampering proxies.
+### 3.3 切断・タイムアウト
+- 再接続猶予（例: 20秒）を設定。
+- 締切までに有効行動がない場合、サーバーがフォールバック適用:
+  - `auto_basic_attack`
+  - `skip_turn`
+  - N回連続で `forfeit`
+- いずれも同じ権威リゾルバで処理。
 
 ---
 
-## 5) Supabase Schema (Conceptual)
+## 4) アンチチート戦略
+
+### 4.1 信頼境界
+- **信頼する領域**: Edge Functions + Postgres内ルールデータ。
+- **信頼しない領域**: ブラウザ実行環境、ローカルストレージ、クライアント送信値。
+
+### 4.2 具体策
+1. **意図のみ送信するプロトコル**
+   - クライアントは結果ではなく行動意図のみ送る。
+2. **サーバー側乱数**
+   - 乱数シードはバトル/ターン単位でサーバー生成。
+   - 競技モードではcommit-reveal監査も検討。
+3. **厳格な行動バリデーション**
+   - Edge Functionでスキーマ検証（Zod/Valibot）。
+   - 正式状態に対する整合性チェック。
+4. **RLS（Row Level Security）**
+   - 参加バトルのみ読める。
+   - クライアントロールからバトル中核テーブルの書込を禁止。
+5. **単調増加ターンID + 冪等キー**
+   - リプレイ攻撃・二重送信を防止。
+6. **レート制限 + 異常監査ログ**
+   - 行動APIをスロットリング。
+   - 疑わしい挙動を `anti_cheat_audit` に記録。
+7. **署名付きサーバーイベント（任意強化）**
+   - 中継改ざん検知のため署名を添付。
+
+---
+
+## 5) Supabaseスキーマ（概念）
 
 ```sql
--- Core matchup lifecycle
 profiles(id, mmr, region, created_at)
 player_loadouts(id, player_id, team_blob, locked_ruleset_id)
 
@@ -180,22 +180,22 @@ battle_snapshots(id, battle_id, turn_number, state_json, created_at)
 anti_cheat_audit(id, player_id, battle_id, event_type, metadata_json, created_at)
 ```
 
-### RLS Notes
-- `select` on battle tables only where `auth.uid()` in participants.
-- `insert/update/delete` on battle-critical tables disabled for client role.
-- Edge Functions use service role key for authoritative writes.
+### RLS方針
+- battle系テーブルは `auth.uid()` が参加者の場合のみ `select`。
+- battle中核テーブルの `insert/update/delete` はクライアントロール禁止。
+- 権威的更新はEdge Functions（service role）経由のみ。
 
 ---
 
-## 6) Realtime/WebSocket Event Contract
+## 6) Realtime / WebSocket イベント契約
 
-Use one channel per battle room: `room:{battleId}`.
+バトルごとに1チャネル: `room:{battleId}`。
 
-### Client -> Server (via Edge Function call, not direct broadcast)
+### Client -> Server（Edge Function経由、直接broadcastしない）
 - `submit_action`
   - `{ battleId, turn, actionType, payload, idempotencyKey }`
 
-### Server -> Clients (broadcast)
+### Server -> Clients（broadcast）
 - `battle_started`
 - `turn_started`
   - `{ battleId, turn, deadlineTs, publicState }`
@@ -205,37 +205,37 @@ Use one channel per battle room: `room:{battleId}`.
   - `{ battleId, winnerId, reason }`
 - `player_disconnected` / `player_reconnected`
 
-### Versioning
-Include `schemaVersion` in each event payload and keep backward-compatible parsers on client.
+### バージョニング
+全イベントに `schemaVersion` を持たせ、クライアントは後方互換パーサを維持。
 
 ---
 
-## 7) Frontend Architecture (React + Phaser)
+## 7) フロントエンド構成（React + Phaser）
 
-## 7.1 Responsibilities Split
+### 7.1 役割分担
 
-### React
-- Authentication/session handling.
-- Lobby, matchmaking UI, roster selection.
-- Battle overlays: move buttons, timers, status text, chat/emotes.
-- Global store + networking orchestration.
+#### React
+- 認証/セッション管理
+- ロビー、マッチメイキング、編成UI
+- バトルオーバーレイ（技ボタン、タイマー、状態表示、エモート等）
+- グローバル状態管理と通信オーケストレーション
 
-### Phaser
-- Sprite scene graph, animations, VFX, camera shake.
-- Receives normalized battle animation events from React store.
-- No game-rule ownership; purely visual state projection.
+#### Phaser
+- スプライト描画、アニメーション、VFX、カメラ演出
+- Reactストアの正規化イベントを受けて描画
+- ルールロジックは持たない（表示専任）
 
-## 7.2 Suggested Client Modules
-- `BattleGateway`: websocket subscribe/unsubscribe + reconnection logic.
-- `BattleStore`: canonical client copy of **server-provided** battle state.
-- `ActionComposer`: builds legal action payload candidates from UI inputs.
-- `PredictionLayer` (optional): temporary UI anticipation only; always reconciles to server events.
+### 7.2 推奨クライアントモジュール
+- `BattleGateway`: WebSocket購読/再接続
+- `BattleStore`: サーバー配信状態のクライアント正規キャッシュ
+- `ActionComposer`: UI入力から行動ペイロード生成
+- `PredictionLayer`（任意）: 一時予測表示。常にサーバー結果へ収束。
 
 ---
 
-## 8) Backend Modularization
+## 8) バックエンドのモジュール化
 
-Implement rules engine as pure modules so it can run in Edge Functions and tests.
+ルールエンジンは純粋関数として分割し、Edge Functionsとテスト双方で利用。
 
 - `rules/turnOrder.ts`
 - `rules/hitResolution.ts`
@@ -243,9 +243,7 @@ Implement rules engine as pure modules so it can run in Edge Functions and tests
 - `rules/statusEffects.ts`
 - `rules/endTurn.ts`
 - `rules/applyAction.ts`
-- `rules/resolveTurn.ts` (orchestrator)
-
-Each module should be deterministic and side-effect free:
+- `rules/resolveTurn.ts`（統合オーケストレータ）
 
 ```ts
 nextState = resolveTurn({
@@ -257,16 +255,16 @@ nextState = resolveTurn({
 })
 ```
 
-This allows replay tests and anti-cheat audit re-simulation.
+純粋関数化により、リプレイ検証と不正監査再計算が容易。
 
 ---
 
-## 9) Clear Folder Structure
+## 9) 明確なフォルダ構成
 
 ```text
 monster-rpg/
   apps/
-    web/                          # React + Phaser client
+    web/                          # React + Phaserクライアント
       src/
         app/
           routes/
@@ -275,18 +273,18 @@ monster-rpg/
           auth/
           matchmaking/
           battle/
-            components/           # React HUD and panels
-            scene/                # Phaser scene + assets bindings
+            components/           # React HUDやパネル
+            scene/                # Phaserシーン/アセット連携
             store/                # Zustand/Redux slices
-            net/                  # Realtime gateway + DTO mapping
-            domain/               # client-side battle view models
+            net/                  # Realtime gateway / DTO
+            domain/               # 表示用ドメインモデル
         shared/
           ui/
           lib/
           types/
 
   supabase/
-    migrations/                   # SQL schema + RLS policies
+    migrations/                   # SQLスキーマ + RLSポリシー
     functions/
       matchmaking-enqueue/
       matchmaking-tick/
@@ -296,7 +294,7 @@ monster-rpg/
     seed/
 
   packages/
-    battle-engine/                # shared deterministic rules engine
+    battle-engine/                # 決定的ルールエンジン
       src/
         core/
           resolveTurn.ts
@@ -308,7 +306,7 @@ monster-rpg/
         models/
         rng/
         tests/
-    protocol/                     # event schemas + zod validators
+    protocol/                     # イベント定義 + zodバリデータ
       src/
         events/
         actions/
@@ -316,7 +314,7 @@ monster-rpg/
 
   tooling/
     scripts/
-      replay-battle.ts            # verify deterministic replay
+      replay-battle.ts            # 決定的リプレイ検証
       loadtest-matchmaking.ts
 
   docs/
@@ -326,52 +324,52 @@ monster-rpg/
 
 ---
 
-## 10) Matchmaking Design (Room-based)
+## 10) マッチメイキング設計（ルームベース）
 
-- Queue key dimensions: `mode`, `ruleset`, `mmr_range`, `region`.
-- `matchmaking-tick` runs every few seconds:
-  - picks oldest compatible entries,
-  - gradually widens MMR window over wait time,
-  - creates battle room atomically in transaction.
-- Store a `roomJoinToken` mapped to authenticated users/battle to prevent room hijacking.
-
----
-
-## 11) Determinism & Testing Strategy
-
-1. **Unit tests** on each rules module (damage, status, ordering).
-2. **Golden snapshot tests** on full `resolveTurn` outputs.
-3. **Replay tests**: rebuild battle from turn intents and compare resulting hash.
-4. **Property-based tests** for invariants (HP never < 0, fainted can’t act).
-5. **Contract tests** for protocol schema version compatibility.
-6. **Integration tests**: simulate two players through websocket lifecycle.
+- キュー軸: `mode`, `ruleset`, `mmr_range`, `region`。
+- `matchmaking-tick` を数秒おきに実行:
+  - 最古の互換エントリを優先
+  - 待機時間に応じMMR幅を段階的拡張
+  - トランザクションでバトルルームを原子的作成
+- `roomJoinToken` をユーザー/バトルに紐付け、ルーム乗っ取りを防止。
 
 ---
 
-## 12) Minimal Implementation Roadmap
+## 11) 決定性とテスト戦略
 
-### Phase 1 (Foundation)
-- Set up schema, RLS, auth, queue and battle tables.
-- Build deterministic `battle-engine` package with tests.
-- Implement `battle-submit-action` + `battle-resolve-turn`.
-
-### Phase 2 (Playable PvP)
-- React lobby + matchmaking queue UX.
-- Phaser battle scene with server-driven animations.
-- Reconnect/timeout behavior.
-
-### Phase 3 (Hardening)
-- Anti-cheat audits, rate limits, replay validation jobs.
-- Spectator mode and richer event compression.
-- Metrics dashboards (turn latency, disconnect rate, invalid action rate).
+1. ルール別ユニットテスト（ダメージ、状態異常、行動順）。
+2. `resolveTurn` のゴールデンスナップショットテスト。
+3. リプレイテスト（行動履歴から再構築し状態ハッシュ比較）。
+4. 性質ベーステスト（HPは0未満にならない等）。
+5. プロトコルの互換性契約テスト。
+6. WebSocketライフサイクルの統合テスト（2プレイヤー模擬）。
 
 ---
 
-## 13) Practical Notes
+## 12) 最小実装ロードマップ
 
-- Keep payloads small: send **delta events**, not full state each turn.
-- Persist full snapshots every N turns for fast reconnect.
-- Use optimistic UI sparingly; reconcile aggressively to server truth.
-- Keep protocol and rules in shared packages to avoid drift.
+### Phase 1（基盤）
+- スキーマ、RLS、Auth、キュー/バトルテーブル整備。
+- `battle-engine` パッケージ実装とテスト。
+- `battle-submit-action` / `battle-resolve-turn` 実装。
 
-This architecture gives you responsive realtime PvP while preserving fairness through strict server authority and a deterministic battle engine.
+### Phase 2（対戦可能化）
+- Reactロビー + マッチメイキングUI。
+- サーバー駆動演出のPhaserバトルシーン。
+- 再接続/タイムアウト制御。
+
+### Phase 3（堅牢化）
+- 監査ログ、レート制限、リプレイ検証ジョブ。
+- 観戦モード、イベント圧縮改善。
+- メトリクス可視化（ターン遅延、切断率、不正行動率）。
+
+---
+
+## 13) 実装時の実務メモ
+
+- ペイロードは小さく（全状態ではなく**差分イベント**中心）。
+- 再接続高速化のため、Nターンごとにフルスナップショット保存。
+- 楽観UIは最小限にし、常にサーバー正へ強制収束。
+- プロトコル定義とルール実装を共有パッケージ化して乖離防止。
+
+この構成により、リアルタイム対戦の応答性と、公平性（サーバー権威 + 決定的ルール）を両立できます。
