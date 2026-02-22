@@ -1,0 +1,124 @@
+:root {
+  --bg: #111827;
+  --panel: #1f2937;
+  --line: #374151;
+  --text: #f9fafb;
+  --sub: #9ca3af;
+  --accent: #22c55e;
+  --danger: #ef4444;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "BIZ UDPGothic", "Hiragino Kaku Gothic ProN", sans-serif;
+  background: linear-gradient(180deg, #0b1022, #182745);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.app {
+  width: min(980px, 94vw);
+  margin: 0 auto;
+  padding: 24px 0 36px;
+}
+
+.subtitle {
+  margin-top: 4px;
+  color: var(--sub);
+}
+
+.arena {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 18px 0;
+}
+
+.monster,
+.controls,
+.log-wrap {
+  background: color-mix(in srgb, var(--panel) 86%, #000);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.hp {
+  margin-bottom: 6px;
+}
+
+.hp-bar {
+  width: 100%;
+  background: #4b5563;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.hp-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, var(--accent), #84cc16);
+  transition: width 0.25s ease;
+}
+
+.status {
+  color: var(--sub);
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+button {
+  border: 1px solid #10b981;
+  background: #047857;
+  color: white;
+  border-radius: 10px;
+  padding: 10px;
+  cursor: pointer;
+  font-size: 15px;
+}
+
+button:hover:enabled {
+  filter: brightness(1.07);
+}
+
+button:disabled {
+  background: #374151;
+  border-color: #4b5563;
+  color: #d1d5db;
+  cursor: not-allowed;
+}
+
+.secondary {
+  margin-top: 10px;
+  background: #1e40af;
+  border-color: #3b82f6;
+}
+
+.battle-log {
+  margin: 0;
+  padding-left: 22px;
+  display: grid;
+  gap: 6px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.battle-log li {
+  color: #e5e7eb;
+}
+
+@media (max-width: 760px) {
+  .arena,
+  .actions {
+    grid-template-columns: 1fr;
+  }
+}

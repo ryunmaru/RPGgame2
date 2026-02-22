@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>モンスターRPG ミニバトル</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header>
+        <h1>モンスターRPG ミニバトル</h1>
+        <p class="subtitle">ブラウザで遊べるターン制サンプル</p>
+      </header>
+
+      <section class="arena">
+        <article class="monster enemy" aria-label="敵モンスター">
+          <h2 id="enemy-name">スライムキング</h2>
+          <p class="hp" id="enemy-hp">HP: 120 / 120</p>
+          <div class="hp-bar"><div id="enemy-hp-fill" class="hp-fill"></div></div>
+          <p id="enemy-status" class="status">状態: 通常</p>
+        </article>
+
+        <article class="monster player" aria-label="自分のモンスター">
+          <h2 id="player-name">ファイアウルフ</h2>
+          <p class="hp" id="player-hp">HP: 130 / 130</p>
+          <div class="hp-bar"><div id="player-hp-fill" class="hp-fill"></div></div>
+          <p id="player-status" class="status">状態: 通常</p>
+        </article>
+      </section>
+
+      <section class="controls">
+        <h3>行動を選択してください</h3>
+        <div class="actions" id="actions"></div>
+        <button id="reset-btn" class="secondary">もう一度遊ぶ</button>
+      </section>
+
+      <section class="log-wrap">
+        <h3>バトルログ</h3>
+        <ul id="battle-log" class="battle-log" aria-live="polite"></ul>
+      </section>
+    </main>
+
+    <script src="src/game.js"></script>
+  </body>
+</html>
