@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<<<<<<< codex/design-online-turn-based-battle-architecture-rtbn78
     <title>Phaser トップダウンRPGマップ</title>
     <link rel="stylesheet" href="styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js" defer></script>
@@ -14,5 +15,58 @@
       <p>20x20グリッド / 矢印キー移動 / Bでバトルシーン / Mでマップ復帰</p>
       <div id="game-root" aria-label="Phaser game canvas"></div>
     </main>
+=======
+    <title>モンスターRPG ミニバトル</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header>
+        <h1>モンスターRPG ミニバトル</h1>
+        <p class="subtitle">ブラウザで遊べるターン制サンプル</p>
+      </header>
+
+      <section class="arena" id="arena">
+        <article class="monster enemy" id="enemy-card" aria-label="敵モンスター">
+          <div class="sprite-wrap">
+            <img src="assets/enemy-monster.svg" alt="スライムキングのスプライト" class="sprite" />
+            <div class="damage-layer" id="enemy-damage-layer"></div>
+          </div>
+          <h2 id="enemy-name">スライムキング</h2>
+          <p class="hp" id="enemy-hp">HP: 120 / 120</p>
+          <div class="hp-bar">
+            <div id="enemy-hp-fill" class="hp-fill"></div>
+          </div>
+          <p id="enemy-status" class="status">状態: 通常</p>
+        </article>
+
+        <article class="monster player" id="player-card" aria-label="自分のモンスター">
+          <div class="sprite-wrap">
+            <img src="assets/player-monster.svg" alt="ファイアウルフのスプライト" class="sprite" />
+            <div class="damage-layer" id="player-damage-layer"></div>
+          </div>
+          <h2 id="player-name">ファイアウルフ</h2>
+          <p class="hp" id="player-hp">HP: 130 / 130</p>
+          <div class="hp-bar">
+            <div id="player-hp-fill" class="hp-fill"></div>
+          </div>
+          <p id="player-status" class="status">状態: 通常</p>
+        </article>
+      </section>
+
+      <section class="controls">
+        <h3>行動を選択してください</h3>
+        <div class="actions" id="actions"></div>
+        <button id="reset-btn" class="secondary">もう一度遊ぶ</button>
+      </section>
+
+      <section class="log-wrap">
+        <h3>バトルログ</h3>
+        <ul id="battle-log" class="battle-log" aria-live="polite"></ul>
+      </section>
+    </main>
+
+    <script type="module" src="src/game.js"></script>
+>>>>>>> main
   </body>
 </html>
