@@ -1,3 +1,5 @@
+<<<<<<< codex/design-online-turn-based-battle-architecture-rtbn78
+=======
 :root {
   --line: #30415a;
   --text: #f9fafb;
@@ -6,12 +8,50 @@
   --danger: #ef4444;
 }
 
+>>>>>>> main
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
+<<<<<<< codex/design-online-turn-based-battle-architecture-rtbn78
+  min-height: 100vh;
+  font-family: 'BIZ UDPGothic', sans-serif;
+  color: #e2e8f0;
+  background: radial-gradient(circle at 20% 10%, #1e3a8a66 0, transparent 40%), #020617;
+  display: grid;
+  place-items: center;
+}
+
+.layout {
+  width: min(760px, 96vw);
+  text-align: center;
+}
+
+h1 {
+  margin-bottom: 6px;
+}
+
+p {
+  color: #cbd5e1;
+  margin-top: 0;
+  margin-bottom: 14px;
+}
+
+#game-root {
+  width: 640px;
+  height: 640px;
+  margin: 0 auto;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 44px #00000070;
+}
+
+#game-root canvas {
+  display: block;
+=======
   font-family: "BIZ UDPGothic", "Hiragino Kaku Gothic ProN", sans-serif;
   background:
     radial-gradient(circle at 20% 20%, #314d7f66, transparent 45%),
@@ -198,4 +238,5 @@ button:disabled {
   .actions {
     grid-template-columns: 1fr;
   }
+>>>>>>> main
 }
