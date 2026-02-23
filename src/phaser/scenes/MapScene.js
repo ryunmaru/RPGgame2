@@ -1,4 +1,5 @@
 import { GRID_SIZE, MAP_HEIGHT, MAP_WIDTH, PLAYER_SPEED, TILE_SIZE } from '../constants.js';
+import { EncounterSystem } from '../systems/encounterSystem.js';
 
 export class MapScene extends Phaser.Scene {
   constructor() {
@@ -6,10 +7,13 @@ export class MapScene extends Phaser.Scene {
   }
 
   create() {
+    this.encounterSystem = new EncounterSystem();
     this.createMapBackground();
     this.createWalls();
     this.createPlayer();
     this.createUi();
+
+    this.previousTile = this.encounterSystem.getTilePosition(this.player.x, this.player.y);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.battleKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B);
@@ -23,7 +27,7 @@ export class MapScene extends Phaser.Scene {
 
   update() {
     if (Phaser.Input.Keyboard.JustDown(this.battleKey)) {
-      this.scene.start('BattleScene');
+      this.startBattleWithEnemy({ id: 'training', name: 'トレーニングダミー', level: 1, hp: 20 });
       return;
     }
 
@@ -43,6 +47,29 @@ export class MapScene extends Phaser.Scene {
     }
 
     body.velocity.normalize().scale(PLAYER_SPEED);
+    this.checkRandomEncounter();
+  }
+
+  checkRandomEncounter() {
+    if (this.player.body.velocity.lengthSq() === 0) {
+      return;
+    }
+
+    const currentTile = this.encounterSystem.getTilePosition(this.player.x, this.player.y);
+    const enemy = this.encounterSystem.resolveEncounter(this.previousTile, currentTile);
+    this.previousTile = currentTile;
+
+    if (!enemy) {
+      return;
+    }
+
+    this.startBattleWithEnemy(enemy);
+  }
+
+  startBattleWithEnemy(enemy) {
+    this.scene.start('BattleScene', {
+      enemy
+    });
   }
 
   createMapBackground() {
@@ -92,7 +119,7 @@ export class MapScene extends Phaser.Scene {
 
   createUi() {
     this.add
-      .text(14, 12, 'MAP SCENE\n矢印キー: 移動\nBキー: バトルへ', {
+      .text(14, 12, 'MAP SCENE\n矢印キー: 移動\n移動1タイルごとに10%でエンカウント\nBキー: すぐバトルへ', {
         fontFamily: 'monospace',
         fontSize: '16px',
         color: '#f8fafc',
